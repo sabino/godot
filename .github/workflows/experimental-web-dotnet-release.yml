@@ -181,7 +181,7 @@ jobs:
           - Linux x86_64 Godot editor with the .NET module enabled
           - Matching Web release template zip built with `module_mono_enabled=yes threads=no`
 
-          The build is intended for browser gameplay experiments that depend on the Godot Web .NET prototype path and local marshalling fixes.
+          The build is intended for browser gameplay experiments that depend on the Godot Web .NET prototype path and local marshaling fixes.
           EOF
 
       - name: Create or update GitHub release
