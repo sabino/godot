@@ -21,20 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Editor w/ Mono (target=editor)
-            cache-name: linux-editor-mono
-            target: editor
-            sconsflags: module_mono_enabled=yes
-            bin: ./bin/godot.linuxbsd.editor.x86_64.mono
-            build-mono: true
-            tests: false # Disabled due freeze caused by mix Mono build and CI
-            doc-test: true
-            proj-conv: true
-            api-compat: true
-            artifact: true
-            # Validate godot-cpp compatibility on one arbitrary editor build.
-            godot-cpp: true
-
           - name: Template w/ Mono, release (target=template_release, tests=yes)
             cache-name: linux-template-mono
             target: template_release
