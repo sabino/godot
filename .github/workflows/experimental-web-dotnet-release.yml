@@ -1,0 +1,194 @@
+name: Experimental Web .NET Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to create or update. Defaults to web-dotnet-experimental-<run number>."
+        required: false
+        type: string
+  push:
+    tags:
+      - "web-dotnet-experimental-*"
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  EM_VERSION: 3.1.62
+  SCONS_CACHE: ${{ github.workspace }}/.scons_cache
+
+jobs:
+  build-release:
+    name: Build Linux editor and Web .NET template
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free disk space
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          echo "Disk usage after cleanup:"
+          df -h
+
+      - name: Install Linux build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwayland-bin \
+            pkg-config
+
+      - name: Setup Python and SCons
+        uses: ./.github/actions/godot-deps
+        with:
+          scons-version: 4.9.0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Install WebAssembly workload
+        run: |
+          set -euo pipefail
+          dotnet workload install wasm-tools
+          dotnet workload install wasm-tools-net9 --skip-manifest-update
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EM_VERSION }}
+          no-cache: true
+
+      - name: Verify toolchains
+        run: |
+          set -euo pipefail
+          python --version
+          scons --version
+          dotnet --info
+          emcc -v
+
+      - name: Restore build cache
+        uses: ./.github/actions/godot-cache-restore
+        with:
+          cache-name: experimental-web-dotnet-release
+        continue-on-error: true
+
+      - name: Build managed assemblies
+        run: |
+          set -euo pipefail
+          ./modules/mono/build_scripts/build_assemblies.py \
+            --godot-output-dir=./bin \
+            --godot-platform=linuxbsd
+
+      - name: Build Linux editor with .NET
+        run: |
+          set -euo pipefail
+          scons \
+            platform=linuxbsd \
+            target=editor \
+            module_mono_enabled=yes \
+            debug_symbols=no \
+            cache_path="${SCONS_CACHE}" \
+            -j"$(nproc)"
+
+      - name: Build Web .NET release template
+        run: |
+          set -euo pipefail
+          scons \
+            platform=web \
+            target=template_release \
+            module_mono_enabled=yes \
+            threads=no \
+            debug_symbols=no \
+            cache_path="${SCONS_CACHE}" \
+            -j"$(nproc)"
+
+      - name: Save build cache
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: experimental-web-dotnet-release
+        continue-on-error: true
+
+      - name: Package release assets
+        run: |
+          set -euo pipefail
+          mkdir -p dist package/godot-web-dotnet-linux-x86_64
+          cp bin/godot.linuxbsd.editor.x86_64.mono package/godot-web-dotnet-linux-x86_64/
+          cp -R bin/GodotSharp package/godot-web-dotnet-linux-x86_64/GodotSharp
+          chmod +x package/godot-web-dotnet-linux-x86_64/godot.linuxbsd.editor.x86_64.mono
+          tar -C package -czf dist/godot-web-dotnet-linux-x86_64.tar.gz godot-web-dotnet-linux-x86_64
+          cp bin/godot.web.template_release.wasm32.nothreads.mono.zip dist/godot-web-dotnet-template-release-nothreads.zip
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "emscripten=${EM_VERSION}"
+            echo "dotnet=$(dotnet --version)"
+          } > dist/build-info.txt
+          sha256sum dist/* > dist/SHA256SUMS
+          ls -lh dist
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-web-dotnet-experimental
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Resolve release tag
+        id: release_tag
+        env:
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag_name="${GITHUB_REF_NAME}"
+          elif [[ -n "${INPUT_TAG_NAME}" ]]; then
+            tag_name="${INPUT_TAG_NAME}"
+          else
+            tag_name="web-dotnet-experimental-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        run: |
+          set -euo pipefail
+          cat > RELEASE_NOTES.md <<'EOF'
+          Experimental Godot Web .NET build for Open Platformer Runtime.
+
+          This is not an upstream Godot release and is not a stable engine distribution. It packages:
+
+          - Linux x86_64 Godot editor with the .NET module enabled
+          - Matching Web release template zip built with `module_mono_enabled=yes threads=no`
+
+          The build is intended for browser gameplay experiments that depend on the Godot Web .NET prototype path and local marshalling fixes.
+          EOF
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release_tag.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" dist/* --clobber
+          else
+            gh release create "$TAG_NAME" dist/* \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "Experimental Web .NET build ${TAG_NAME}" \
+              --notes-file RELEASE_NOTES.md
+          fi

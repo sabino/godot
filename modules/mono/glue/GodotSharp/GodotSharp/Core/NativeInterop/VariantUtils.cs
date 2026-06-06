@@ -491,7 +491,7 @@ namespace Godot.NativeInterop
                 return IntPtr.Zero;
             }
 
-            return NativeFuncs.godotsharp_instance_from_id(p_var.ObjectId);
+            return NativeFuncs.godotsharp_variant_get_object_ptr(p_var);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

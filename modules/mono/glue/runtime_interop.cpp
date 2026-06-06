@@ -963,6 +963,12 @@ godot_variant *godotsharp_array_ptrw(godot_array *p_self) {
 	return reinterpret_cast<godot_variant *>(&reinterpret_cast<Array *>(p_self)->operator[](0));
 }
 
+void godotsharp_array_get_variant(const Array *p_self, int32_t p_index, Variant *r_value) {
+	ERR_FAIL_COND(!p_self);
+	ERR_FAIL_INDEX(p_index, p_self->size());
+	memnew_placement(r_value, Variant((*p_self)[p_index]));
+}
+
 // dictionary.h
 
 void godotsharp_dictionary_new(Dictionary *r_dest) {
@@ -1508,6 +1514,11 @@ Object *godotsharp_instance_from_id(uint64_t p_instance_id) {
 	return ObjectDB::get_instance(ObjectID(p_instance_id));
 }
 
+Object *godotsharp_variant_get_object_ptr(const Variant *p_var) {
+	ERR_FAIL_NULL_V(p_var, nullptr);
+	return p_var->get_validated_object();
+}
+
 void godotsharp_object_to_string(Object *p_ptr, godot_string *r_str) {
 #ifdef DEBUG_ENABLED
 	// Cannot happen in C#; would get an ObjectDisposedException instead.
@@ -1641,6 +1652,7 @@ static const void *unmanaged_callbacks[]{
 	(void *)godotsharp_array_new,
 	(void *)godotsharp_array_new_copy,
 	(void *)godotsharp_array_ptrw,
+	(void *)godotsharp_array_get_variant,
 	(void *)godotsharp_dictionary_new,
 	(void *)godotsharp_dictionary_new_copy,
 	(void *)godotsharp_packed_byte_array_destroy,
@@ -1727,6 +1739,7 @@ static const void *unmanaged_callbacks[]{
 	(void *)godotsharp_convert,
 	(void *)godotsharp_hash,
 	(void *)godotsharp_instance_from_id,
+	(void *)godotsharp_variant_get_object_ptr,
 	(void *)godotsharp_print,
 	(void *)godotsharp_print_rich,
 	(void *)godotsharp_printerr,

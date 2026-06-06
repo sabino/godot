@@ -337,6 +337,8 @@ namespace Godot.NativeInterop
 
         public static partial godot_variant* godotsharp_array_ptrw(ref godot_array p_self);
 
+        public static partial void godotsharp_array_get_variant(scoped ref godot_array p_self, int p_index, out godot_variant r_value);
+
         // dictionary.h
 
         public static partial void godotsharp_dictionary_new(out godot_dictionary r_dest);
@@ -557,6 +559,8 @@ namespace Godot.NativeInterop
         internal static partial int godotsharp_hash(in godot_variant p_var);
 
         internal static partial IntPtr godotsharp_instance_from_id(ulong p_instance_id);
+
+        internal static partial IntPtr godotsharp_variant_get_object_ptr(scoped in godot_variant p_var);
 
         internal static partial void godotsharp_print(in godot_string p_what);
 

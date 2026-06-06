@@ -33,6 +33,7 @@
 #include "os_web.h"
 
 #include "core/config/engine.h"
+#include "core/error/error_macros.h"
 #include "core/io/resource_loader.h"
 #include "main/main.h"
 #include "scene/main/scene_tree.h"
@@ -135,7 +136,17 @@ extern EMSCRIPTEN_KEEPALIVE int godot_web_main(int argc, char *argv[]) {
 
 	int ret = Main::start();
 	os->set_exit_code(ret);
-	os->get_main_loop()->initialize();
+	MainLoop *main_loop = os->get_main_loop();
+	if (ret != EXIT_SUCCESS) {
+		ERR_PRINT(vformat("Godot web main start returned exit code %d.", ret));
+	}
+	if (main_loop == nullptr) {
+		ERR_PRINT("Godot web main loop is null after startup.");
+		emscripten_set_main_loop(exit_callback, -1, false);
+		godot_js_os_finish_async(cleanup_after_sync);
+		return EXIT_FAILURE;
+	}
+	main_loop->initialize();
 #ifdef TOOLS_ENABLED
 	if (Engine::get_singleton()->is_project_manager_hint() && FileAccess::exists("/tmp/preload.zip")) {
 		PackedStringArray ps;

@@ -1435,8 +1435,19 @@ namespace Godot.Collections
         {
             get
             {
-                _underlyingArray.GetVariantBorrowElementAt(index, out godot_variant borrowElem);
-                return VariantUtils.ConvertTo<T>(borrowElem);
+                if (index < 0 || index >= Count)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+
+                var self = (godot_array)_underlyingArray.NativeValue;
+                NativeFuncs.godotsharp_array_get_variant(ref self, index, out godot_variant item);
+                try
+                {
+                    return VariantUtils.ConvertTo<T>(item);
+                }
+                finally
+                {
+                    item.Dispose();
+                }
             }
             set
             {
