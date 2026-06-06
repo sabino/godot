@@ -88,13 +88,6 @@ jobs:
           cache-name: experimental-web-dotnet-release
         continue-on-error: true
 
-      - name: Build managed assemblies
-        run: |
-          set -euo pipefail
-          ./modules/mono/build_scripts/build_assemblies.py \
-            --godot-output-dir=./bin \
-            --godot-platform=linuxbsd
-
       - name: Build Linux editor with .NET
         run: |
           set -euo pipefail
@@ -105,6 +98,20 @@ jobs:
             debug_symbols=no \
             cache_path="${SCONS_CACHE}" \
             -j"$(nproc)"
+
+      - name: Generate C# glue
+        run: |
+          set -euo pipefail
+          ./bin/godot.linuxbsd.editor.x86_64.mono \
+            --headless \
+            --generate-mono-glue ./modules/mono/glue
+
+      - name: Build managed assemblies
+        run: |
+          set -euo pipefail
+          ./modules/mono/build_scripts/build_assemblies.py \
+            --godot-output-dir=./bin \
+            --godot-platform=linuxbsd
 
       - name: Build Web .NET release template
         run: |
